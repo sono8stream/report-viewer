@@ -75,25 +75,54 @@ app.get('/api/saves', (req, res) => {
 // 管理者用: 全件（公開・非公開）
 app.get('/api/admin/saves', basicAuth, (req, res) => {
   const saves = loadSaves();
-  const list = Object.entries(saves).map(([id, s]) => ({
-    id, name: s.name, savedAt: s.savedAt,
-    companyCount: s.results.length,
-    avg: s.stats.avg, median: s.stats.median,
-    published: s.published ?? false,
-  }));
+  const list = Object.entries(saves).map(([id, s]) => {
+    const results = s.results || [];
+    const found = results.filter(r => r.score !== null);
+    const allPersons = results.reduce((sum, r) => sum + (r.count || 1), 0);
+    const foundPersons = found.reduce((sum, r) => sum + (r.count || 1), 0);
+    const coverage = allPersons > 0 ? Math.round(foundPersons / allPersons * 100) : null;
+    return {
+      id, name: s.name, savedAt: s.savedAt,
+      companyCount: results.length,
+      avg: s.stats?.avg, median: s.stats?.median,
+      published: s.published ?? false,
+      coverage,
+      sources: s.sources || [],
+      sourceCount: (s.sources || []).length,
+    };
+  });
   list.sort((a, b) => b.savedAt - a.savedAt);
   res.json(list);
 });
 
 // 保存（デフォルト非公開）
 app.post('/api/saves', basicAuth, (req, res) => {
-  const { name, inputText, results, stats } = req.body;
+  const { name, inputText, results, stats, sources } = req.body;
   if (!name || !results) return res.status(400).json({ error: 'name and results required' });
   const saves = loadSaves();
   const id = Date.now().toString();
-  saves[id] = { name, inputText, results, stats, savedAt: Date.now(), published: false };
+  saves[id] = { name, inputText, results, stats, sources: sources || [], savedAt: Date.now(), published: false };
   writeSaves(saves);
   res.json({ id });
+});
+
+// 上書き保存
+app.put('/api/saves/:id', basicAuth, (req, res) => {
+  const saves = loadSaves();
+  const s = saves[req.params.id];
+  if (!s) return res.status(404).json({ error: 'not found' });
+  const { name, inputText, results, stats, sources } = req.body;
+  saves[req.params.id] = {
+    ...s,
+    name: name ?? s.name,
+    inputText: inputText ?? s.inputText,
+    results: results ?? s.results,
+    stats: stats ?? s.stats,
+    sources: sources ?? s.sources,
+    updatedAt: Date.now(),
+  };
+  writeSaves(saves);
+  res.json({ ok: true });
 });
 
 // 公開状態の切り替え

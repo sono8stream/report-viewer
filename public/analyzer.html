@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>就職先偏差値アナライザー</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/report-renderer.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f0f4f8; color: #1a202c; }
@@ -240,11 +241,27 @@
   </div>
 </div>
 
+<!-- 編集モーダル -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal" style="width:420px">
+    <h3>レポートを編集</h3>
+    <input type="text" id="edit-name-input" placeholder="名前" maxlength="60">
+    <div style="font-size:0.8rem;color:#718096;margin-bottom:6px">出典・参考リンク（1行1URL）</div>
+    <textarea id="edit-sources-input" placeholder="就職先一覧ページ https://example.ac.jp/career/&#10;就職状況報告書 https://example.ac.jp/career/report.pdf&#10;https://example.ac.jp/career/data.html" style="width:100%;height:100px;border:2px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-family:inherit;resize:vertical;margin-bottom:14px"></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" style="padding:8px 18px" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn btn-primary btn-sm" style="padding:8px 18px;margin-top:0" onclick="confirmEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 保存モーダル -->
 <div class="modal-overlay" id="save-modal">
-  <div class="modal">
+  <div class="modal" style="width:420px">
     <h3>分析結果を保存</h3>
     <input type="text" id="save-name-input" placeholder="名前を入力（例：経済学部2025年）" maxlength="60">
+    <div style="font-size:0.8rem;color:#718096;margin-bottom:6px">参考リンク（任意・1行1URL）</div>
+    <textarea id="save-sources-input" placeholder="就職先一覧ページ https://example.ac.jp/career/&#10;就職状況報告書 https://example.ac.jp/career/report.pdf&#10;https://example.ac.jp/career/data.html" style="width:100%;height:90px;border:2px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-family:inherit;resize:vertical;margin-bottom:14px"></textarea>
     <div class="modal-actions">
       <button class="btn btn-secondary btn-sm" style="padding:8px 18px" onclick="closeSaveModal()">キャンセル</button>
       <button class="btn btn-primary btn-sm" style="padding:8px 18px;margin-top:0" onclick="confirmSave()">保存</button>
@@ -279,69 +296,10 @@ NTTデータ　富士通（2名）
   </div>
 
   <div id="results">
-    <div class="stats-grid">
-      <div class="stat-box blue">
-        <div class="stat-label">対象企業数</div>
-        <div class="stat-value" id="stat-total">-</div>
-        <div class="stat-unit">社</div>
-      </div>
-      <div class="stat-box green">
-        <div class="stat-label">偏差値あり</div>
-        <div class="stat-value" id="stat-found" style="font-size:1.5rem">-</div>
-        <div class="stat-unit" id="stat-found-unit">社</div>
-      </div>
-      <div class="stat-box orange">
-        <div class="stat-label">平均偏差値</div>
-        <div class="stat-value" id="stat-avg">-</div>
-        <div class="stat-unit"></div>
-      </div>
-      <div class="stat-box red">
-        <div class="stat-label">中央値</div>
-        <div class="stat-value" id="stat-median">-</div>
-        <div class="stat-unit"></div>
-      </div>
-      <div class="stat-box purple">
-        <div class="stat-label">最高 / 最低</div>
-        <div class="stat-value" id="stat-range" style="font-size:1.3rem">-</div>
-        <div class="stat-unit"></div>
-      </div>
-    </div>
-
-    <div class="chart-row">
-      <div class="card">
-        <h2>偏差値分布（ヒストグラム）</h2>
-        <div class="chart-wrapper"><canvas id="histChart"></canvas></div>
-      </div>
-      <div class="card">
-        <h2>偏差値帯の割合</h2>
-        <div class="chart-wrapper"><canvas id="pieChart"></canvas></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>企業別スコア一覧</h2>
-      <div class="table-scroll">
-        <table class="result-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>企業名</th>
-              <th>就職偏差値</th>
-              <th>ランク</th>
-            </tr>
-          </thead>
-          <tbody id="result-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card" id="not-found-card" style="display:none">
-      <h2>偏差値データなし（未収録企業）</h2>
-      <div id="not-found-list" class="not-found-list"></div>
-    </div>
-
-    <div style="text-align:right;margin-bottom:8px">
-      <button class="btn btn-secondary" onclick="openSaveModal()" style="background:#ebf4ff;color:#2b6cb0">この結果を保存</button>
+    <div id="report-container"></div>
+    <div style="text-align:right;margin-bottom:8px;display:flex;justify-content:flex-end;gap:8px">
+      <button id="overwrite-btn" class="btn btn-secondary" onclick="overwriteSave()" style="display:none;background:#fefcbf;color:#744210">上書き保存</button>
+      <button class="btn btn-secondary" onclick="openSaveModal()" style="background:#ebf4ff;color:#2b6cb0">別名で保存</button>
     </div>
   </div>
 
@@ -496,30 +454,6 @@ function parseCompanyNames(text) {
   return Array.from(merged.entries()).map(([name, count]) => ({ name, count }));
 }
 
-function getScoreBadge(score) {
-  if (score === null) return `<span class="score-badge score-none">未収録</span>`;
-  let cls = 'score-low';
-  let label = score;
-  if (score >= 75) cls = 'score-high';
-  else if (score >= 70) cls = 'score-mid-high';
-  else if (score >= 65) cls = 'score-mid';
-  else if (score >= 60) cls = 'score-low-mid';
-  return `<span class="score-badge ${cls}">${score}</span>`;
-}
-
-function getRankLabel(score) {
-  if (score === null) return '-';
-  if (score >= 75) return '最難関';
-  if (score >= 70) return '難関';
-  if (score >= 65) return '上位';
-  if (score >= 60) return '中上位';
-  if (score >= 55) return '中堅';
-  return '一般';
-}
-
-let histChartObj = null;
-let pieChartObj = null;
-
 async function analyze() {
   if (!companiesLoaded) {
     setStatus('企業データをまだ読み込み中です。少し待ってから再度押してください。', 'loading');
@@ -547,148 +481,41 @@ async function analyze() {
 
   try {
 
-  // Lookup scores
+  // 照合
   const results = names.map(({ name, count }) => {
     const { score, method } = lookupScore(name);
     return { name, count, score, method };
   });
 
   const found = results.filter(r => r.score !== null);
-  const totalPersons = found.reduce((s, r) => s + r.count, 0);
-
-  // 人数を重みとした展開リスト（加重統計用）
   const weightedScores = found.flatMap(r => Array(r.count).fill(r.score)).sort((a, b) => a - b);
-
-  const avg = weightedScores.length
-    ? weightedScores.reduce((s, v) => s + v, 0) / weightedScores.length : null;
+  const avg = weightedScores.length ? weightedScores.reduce((s, v) => s + v, 0) / weightedScores.length : null;
   const median = weightedScores.length ? (
     weightedScores.length % 2 === 0
       ? (weightedScores[weightedScores.length/2 - 1] + weightedScores[weightedScores.length/2]) / 2
       : weightedScores[Math.floor(weightedScores.length/2)]
   ) : null;
 
-  const totalCompanies = results.length;
-  const hasCount = results.some(r => r.count > 1);
-
-  // Update stats
-  document.getElementById('stat-total').textContent = totalCompanies;
-  document.getElementById('stat-found').textContent = found.length;
-  document.getElementById('stat-found-unit').textContent = hasCount ? `社 / ${totalPersons}名` : '社';
-  document.getElementById('stat-avg').textContent = avg !== null ? avg.toFixed(1) : '-';
-  document.getElementById('stat-median').textContent = median !== null ? median.toFixed(1) : '-';
-  document.getElementById('stat-range').textContent =
-    weightedScores.length ? `${Math.max(...weightedScores)} / ${Math.min(...weightedScores)}` : '-';
-
-  // Table（人数列を人数あり時だけ表示）
-  const tbody = document.getElementById('result-tbody');
-  const thead = document.querySelector('.result-table thead tr');
-  thead.innerHTML = `<th>#</th><th>企業名</th>${hasCount ? '<th>人数</th>' : ''}<th>就職偏差値</th><th>ランク</th>`;
-
-  const sorted = [...results].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const methodLabel = { exact: '', normalized: '正規化', alias: 'エイリアス', partial: '部分一致', none: '' };
-  tbody.innerHTML = sorted.map((r, i) => `
-    <tr>
-      <td style="color:#a0aec0">${i+1}</td>
-      <td>${r.name}${r.method && r.method !== 'exact' && r.method !== 'none' ? `<span style="font-size:0.7rem;color:#a0aec0;margin-left:4px">(${methodLabel[r.method]})</span>` : ''}</td>
-      ${hasCount ? `<td style="color:#718096;font-size:0.875rem">${r.count}名</td>` : ''}
-      <td>${getScoreBadge(r.score)}</td>
-      <td style="font-size:0.8rem;color:#718096">${getRankLabel(r.score)}</td>
-    </tr>
-  `).join('');
-
-  // ヒストグラム（人数ベース）
-  const bins = [];
-  for (let s = 50; s <= 80; s += 5) {
-    const label = s === 80 ? '80' : `${s}-${s+4}`;
-    const cnt = weightedScores.filter(v => s === 80 ? v >= 80 : v >= s && v < s+5).length;
-    bins.push({ label, count: cnt, start: s });
-  }
-
-  const barColors = bins.map(b => {
-    if (b.start >= 75) return 'rgba(252,129,129,0.8)';
-    if (b.start >= 70) return 'rgba(246,173,85,0.8)';
-    if (b.start >= 65) return 'rgba(246,224,94,0.8)';
-    if (b.start >= 60) return 'rgba(104,211,145,0.8)';
-    return 'rgba(99,179,237,0.8)';
+  // 共通レンダラーで描画
+  renderReport(document.getElementById('report-container'), {
+    results,
+    stats: { avg, median, max: weightedScores.length ? Math.max(...weightedScores) : null, min: weightedScores.length ? Math.min(...weightedScores) : null },
+    sources: [],
   });
-
-  if (histChartObj) histChartObj.destroy();
-  histChartObj = new Chart(document.getElementById('histChart'), {
-    type: 'bar',
-    data: {
-      labels: bins.map(b => b.label),
-      datasets: [{
-        label: hasCount ? '人数' : '企業数',
-        data: bins.map(b => b.count),
-        backgroundColor: barColors,
-        borderWidth: 0,
-        borderRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f0f4f8' } },
-        x: { grid: { display: false } }
-      }
-    }
-  });
-
-  // ドーナツチャート（人数ベース）
-  const rankGroups = [
-    { label: '最難関(75+)', count: weightedScores.filter(s => s >= 75).length, color: 'rgba(252,129,129,0.85)' },
-    { label: '難関(70-74)', count: weightedScores.filter(s => s >= 70 && s < 75).length, color: 'rgba(246,173,85,0.85)' },
-    { label: '上位(65-69)', count: weightedScores.filter(s => s >= 65 && s < 70).length, color: 'rgba(246,224,94,0.85)' },
-    { label: '中上位(60-64)', count: weightedScores.filter(s => s >= 60 && s < 65).length, color: 'rgba(104,211,145,0.85)' },
-    { label: '一般(50-59)', count: weightedScores.filter(s => s < 60).length, color: 'rgba(99,179,237,0.85)' },
-  ].filter(g => g.count > 0);
-
-  if (pieChartObj) pieChartObj.destroy();
-  pieChartObj = new Chart(document.getElementById('pieChart'), {
-    type: 'doughnut',
-    data: {
-      labels: rankGroups.map(g => g.label),
-      datasets: [{
-        data: rankGroups.map(g => g.count),
-        backgroundColor: rankGroups.map(g => g.color),
-        borderWidth: 2,
-        borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } }
-      }
-    }
-  });
-
-  // Not found
-  const notFound = results.filter(r => r.score === null);
-  const nfCard = document.getElementById('not-found-card');
-  if (notFound.length > 0) {
-    nfCard.style.display = '';
-    document.getElementById('not-found-list').innerHTML =
-      notFound.map(r => `<span class="not-found-tag">${r.name}</span>`).join('');
-  } else {
-    nfCard.style.display = 'none';
-  }
 
   document.getElementById('results').style.display = 'block';
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
 
-  const hitRate = found.length + '/' + results.length;
-  setStatus(`分析完了（${hitRate}社をデータベースと照合）`, 'success');
+  setStatus(`分析完了（${found.length}/${results.length}社をデータベースと照合）`, 'success');
 
-  // 現在の結果を保存用に保持
   currentAnalysis = {
     inputText: text,
     results,
     stats: { avg, median, max: weightedScores.length ? Math.max(...weightedScores) : null, min: weightedScores.length ? Math.min(...weightedScores) : null },
   };
+
+  // ロードしたデータがある場合は上書きボタンを表示
+  document.getElementById('overwrite-btn').style.display = loadedSaveId ? '' : 'none';
 
   } catch (e) {
     setStatus(`分析中にエラーが発生しました: ${e.message}`, 'error');
@@ -703,11 +530,15 @@ function clearAll() {
   document.getElementById('input').value = '';
   document.getElementById('results').style.removeProperty('display');
   currentAnalysis = null;
+  loadedSaveName = null;
+  loadedSaveId = null;
+  document.getElementById('overwrite-btn').style.display = 'none';
 }
 
 // ---- 保存機能 ----
 let currentAnalysis = null;
-let loadedSaveName = null;  // ロード元の名前（別名保存の初期値に使う）
+let loadedSaveName = null;
+let loadedSaveId = null;  // ロード元のID（上書き保存に使う）
 
 function openSaveModal() {
   if (!currentAnalysis) {
@@ -715,6 +546,7 @@ function openSaveModal() {
     return;
   }
   document.getElementById('save-name-input').value = loadedSaveName || '';
+  document.getElementById('save-sources-input').value = currentAnalysis.sources ? currentAnalysis.sources.join('\n') : '';
   document.getElementById('save-modal').classList.add('open');
   const input = document.getElementById('save-name-input');
   setTimeout(() => { input.focus(); input.select(); }, 50);
@@ -727,11 +559,13 @@ function closeSaveModal() {
 async function confirmSave() {
   const name = document.getElementById('save-name-input').value.trim();
   if (!name) { document.getElementById('save-name-input').focus(); return; }
+  const sources = document.getElementById('save-sources-input').value
+    .split('\n').map(s => s.trim()).filter(s => s.length > 0);
   try {
     const res = await fetch('/api/saves', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, ...currentAnalysis }),
+      body: JSON.stringify({ name, ...currentAnalysis, sources }),
     });
     if (!res.ok) throw new Error('保存失敗');
     closeSaveModal();
@@ -752,18 +586,23 @@ async function renderSaves() {
       return;
     }
     container.innerHTML = list.map(s => `
-      <div class="save-item">
-        <div class="save-info">
-          <div class="save-name">
-            ${escHtml(s.name)}
-            <span style="display:inline-block;margin-left:8px;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#e2e8f0;color:#718096'}">
-              ${s.published ? '公開中' : '非公開'}
-            </span>
-          </div>
-          <div class="save-meta">${new Date(s.savedAt).toLocaleString('ja-JP')} &nbsp;|&nbsp; ${s.companyCount}社 &nbsp;|&nbsp; 平均 ${s.avg !== null ? Number(s.avg).toFixed(1) : '-'} / 中央値 ${s.median !== null ? Number(s.median).toFixed(1) : '-'}</div>
+      <div class="save-item" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="save-name">${escHtml(s.name)}</span>
+          <span style="font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#e2e8f0;color:#718096'}">
+            ${s.published ? '公開中' : '非公開'}
+          </span>
         </div>
-        <div class="save-actions">
+        <div class="save-meta">
+          ${new Date(s.savedAt).toLocaleString('ja-JP')}
+          &nbsp;|&nbsp; ${s.companyCount}社
+          &nbsp;|&nbsp; 平均 ${s.avg !== null ? Number(s.avg).toFixed(1) : '-'} / 中央値 ${s.median !== null ? Number(s.median).toFixed(1) : '-'}
+          ${s.coverage !== null ? `&nbsp;|&nbsp; 収録率 ${s.coverage}%` : ''}
+          ${s.sourceCount > 0 ? `&nbsp;|&nbsp; 参考リンク ${s.sourceCount}件` : ''}
+        </div>
+        <div class="save-actions" style="justify-content:flex-end">
           <button class="btn-sm btn-load" onclick="loadSave('${s.id}')">ロード</button>
+          <button class="btn-sm" style="background:#f0f4f8;color:#4a5568" onclick="openEditModal('${s.id}', '${escHtml(s.name).replace(/'/g,"\\'")}', '${(s.sources||[]).join('\n').replace(/'/g,"\\'").replace(/\n/g,'\\n')}')">編集</button>
           <button class="btn-sm" style="${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#ebf4ff;color:#2b6cb0'}" onclick="togglePublish('${s.id}', this)">
             ${s.published ? '非公開にする' : '公開する'}
           </button>
@@ -775,6 +614,69 @@ async function renderSaves() {
     container.innerHTML = '<div class="saves-empty">読み込みエラー</div>';
   }
 }
+
+async function overwriteSave() {
+  if (!currentAnalysis || !loadedSaveId) return;
+  if (!confirm(`「${loadedSaveName}」を上書き保存しますか？`)) return;
+  try {
+    const sources = document.getElementById('save-sources-input')?.value
+      .split('\n').map(s => s.trim()).filter(s => s) || currentAnalysis.sources || [];
+    const res = await fetch(`/api/saves/${loadedSaveId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...currentAnalysis, sources }),
+    });
+    if (!res.ok) throw new Error('上書き失敗');
+    setStatus(`「${loadedSaveName}」を上書き保存しました`, 'success');
+    await renderSaves();
+  } catch (e) {
+    setStatus('上書きエラー: ' + e.message, 'error');
+  }
+}
+
+let editingId = null;
+
+function openEditModal(id, name, sources) {
+  editingId = id;
+  document.getElementById('edit-name-input').value = name;
+  document.getElementById('edit-sources-input').value = sources;
+  document.getElementById('edit-modal').classList.add('open');
+  setTimeout(() => document.getElementById('edit-name-input').focus(), 50);
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  editingId = null;
+}
+
+async function confirmEdit() {
+  if (!editingId) return;
+  const name = document.getElementById('edit-name-input').value.trim();
+  if (!name) { document.getElementById('edit-name-input').focus(); return; }
+  const sources = document.getElementById('edit-sources-input').value
+    .split('\n').map(s => s.trim()).filter(s => s);
+  try {
+    const res = await fetch(`/api/saves/${editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, sources }),
+    });
+    if (!res.ok) throw new Error('更新失敗');
+    closeEditModal();
+    setStatus('更新しました', 'success');
+    await renderSaves();
+  } catch (e) {
+    setStatus('更新エラー: ' + e.message, 'error');
+  }
+}
+
+// 編集モーダルのキーボード操作
+document.getElementById('edit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-modal')) closeEditModal();
+});
+document.getElementById('edit-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeEditModal();
+});
 
 async function togglePublish(id, btn) {
   try {
@@ -794,7 +696,9 @@ async function loadSave(id) {
     const s = await res.json();
     document.getElementById('input').value = s.inputText || '';
     loadedSaveName = s.name;
-    currentAnalysis = null;  // 再分析するまで保存不可にする
+    loadedSaveId = id;
+    currentAnalysis = null;
+    document.getElementById('overwrite-btn').style.display = 'none';
     document.getElementById('results').style.removeProperty('display');
     setStatus(`「${escHtml(s.name)}」をロードしました。追記・確認して「分析する」を押してください。`, 'info');
     window.scrollTo({ top: 0, behavior: 'smooth' });
