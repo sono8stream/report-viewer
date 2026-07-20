@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>就職先偏差値レポート</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f7f8fa; color: #1a202c; }
+
+  .header {
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    color: white;
+    padding: 32px 32px 28px;
+  }
+  .back { font-size: 0.82rem; color: rgba(255,255,255,0.6); text-decoration: none; display: inline-block; margin-bottom: 12px; }
+  .back:hover { color: white; }
+  .header h1 { font-size: 1.6rem; font-weight: 700; }
+  .header-meta { margin-top: 6px; font-size: 0.82rem; opacity: 0.6; }
+
+  .container { max-width: 1000px; margin: 0 auto; padding: 32px 16px 60px; }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  }
+  .card h2 { font-size: 0.95rem; font-weight: 600; color: #718096; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border-top: 4px solid;
+  }
+  .stat-box.blue  { border-color: #667eea; }
+  .stat-box.green { border-color: #48bb78; }
+  .stat-box.orange{ border-color: #ed8936; }
+  .stat-box.red   { border-color: #fc8181; }
+  .stat-box.purple{ border-color: #9f7aea; }
+  .stat-label { font-size: 0.75rem; color: #a0aec0; margin-bottom: 6px; }
+  .stat-value { font-size: 1.8rem; font-weight: 700; color: #2d3748; line-height: 1; }
+  .stat-unit  { font-size: 0.8rem; color: #a0aec0; margin-top: 4px; }
+
+  .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  @media (max-width: 640px) { .chart-row { grid-template-columns: 1fr; } }
+  .chart-wrapper { position: relative; height: 260px; }
+
+  .result-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .result-table th {
+    background: #f7fafc; padding: 9px 14px; text-align: left;
+    font-weight: 600; color: #718096; border-bottom: 2px solid #e2e8f0;
+  }
+  .result-table td { padding: 8px 14px; border-bottom: 1px solid #f0f4f8; }
+  .result-table tr:hover td { background: #f7fafc; }
+  .table-scroll { max-height: 400px; overflow-y: auto; }
+
+  .score-badge {
+    display: inline-block; padding: 2px 10px;
+    border-radius: 20px; font-weight: 700; font-size: 0.85rem;
+  }
+  .s-high     { background: #fed7d7; color: #c53030; }
+  .s-mid-high { background: #feebc8; color: #c05621; }
+  .s-mid      { background: #fefcbf; color: #744210; }
+  .s-low-mid  { background: #c6f6d5; color: #276749; }
+  .s-low      { background: #bee3f8; color: #2b6cb0; }
+  .s-none     { background: #e2e8f0; color: #718096; }
+
+  .not-found-tag {
+    display: inline-block; background: #f0f4f8;
+    border-radius: 4px; padding: 2px 8px; margin: 2px; font-size: 0.78rem; color: #718096;
+  }
+
+  .note { font-size: 0.78rem; color: #a0aec0; margin-top: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <a class="back" href="/reports">← レポート一覧</a>
+      <h1 id="title">読み込み中…</h1>
+      <div class="header-meta" id="meta"></div>
+    </div>
+    <a id="admin-link" href="/admin" style="display:none;color:rgba(255,255,255,0.7);font-size:0.85rem;text-decoration:none;white-space:nowrap;margin-top:4px;padding:6px 14px;border:1px solid rgba(255,255,255,0.3);border-radius:6px"
+       onmouseover="this.style.color='white';this.style.borderColor='white'"
+       onmouseout="this.style.color='rgba(255,255,255,0.7)';this.style.borderColor='rgba(255,255,255,0.3)'">
+      管理画面 →
+    </a>
+  </div>
+</div>
+
+<div class="container">
+  <div class="stats-grid">
+    <div class="stat-box blue">
+      <div class="stat-label">対象企業数</div>
+      <div class="stat-value" id="s-total">-</div>
+      <div class="stat-unit">社</div>
+    </div>
+    <div class="stat-box green">
+      <div class="stat-label">偏差値あり</div>
+      <div class="stat-value" id="s-found" style="font-size:1.4rem">-</div>
+      <div class="stat-unit" id="s-found-unit">社</div>
+    </div>
+    <div class="stat-box orange">
+      <div class="stat-label">平均偏差値</div>
+      <div class="stat-value" id="s-avg">-</div>
+      <div class="stat-unit">（人数加重）</div>
+    </div>
+    <div class="stat-box red">
+      <div class="stat-label">中央値</div>
+      <div class="stat-value" id="s-median">-</div>
+      <div class="stat-unit">（人数加重）</div>
+    </div>
+    <div class="stat-box purple">
+      <div class="stat-label">最高 / 最低</div>
+      <div class="stat-value" id="s-range" style="font-size:1.2rem">-</div>
+      <div class="stat-unit"></div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="card">
+      <h2>偏差値分布</h2>
+      <div class="chart-wrapper"><canvas id="histChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>ランク別割合</h2>
+      <div class="chart-wrapper"><canvas id="pieChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>企業別スコア</h2>
+    <div class="table-scroll">
+      <table class="result-table">
+        <thead>
+          <tr id="thead-row">
+            <th>#</th><th>企業名</th><th>就職偏差値</th><th>ランク</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="note">データ出典: corp-ratings.com　※偏差値は就職難易度の目安です</div>
+  </div>
+
+  <div class="card" id="not-found-card" style="display:none">
+    <h2>未収録企業</h2>
+    <div id="not-found-list"></div>
+  </div>
+</div>
+
+<script>
+const id = location.pathname.split('/').pop();
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function scoreBadge(score) {
+  if (score === null) return `<span class="score-badge s-none">未収録</span>`;
+  const cls = score >= 75 ? 's-high' : score >= 70 ? 's-mid-high' : score >= 65 ? 's-mid' : score >= 60 ? 's-low-mid' : 's-low';
+  return `<span class="score-badge ${cls}">${score}</span>`;
+}
+
+function rankLabel(score) {
+  if (score === null) return '-';
+  return score >= 75 ? '最難関' : score >= 70 ? '難関' : score >= 65 ? '上位' : score >= 60 ? '中上位' : score >= 55 ? '中堅' : '一般';
+}
+
+async function load() {
+  const res = await fetch(`/api/saves/${id}`);
+  if (!res.ok) { document.getElementById('title').textContent = 'レポートが見つかりません'; return; }
+  const s = await res.json();
+
+  document.title = s.name + ' — 就職先偏差値レポート';
+  document.getElementById('title').textContent = s.name;
+  document.getElementById('meta').textContent =
+    new Date(s.savedAt).toLocaleDateString('ja-JP', {year:'numeric',month:'long',day:'numeric'}) +
+    '　|　学部卒業生・修士課程修了者の就職先';
+
+  const results = s.results || [];
+  const found = results.filter(r => r.score !== null);
+  const totalPersons = found.reduce((sum, r) => sum + (r.count || 1), 0);
+  const hasCount = results.some(r => r.count > 1);
+
+  const weighted = found.flatMap(r => Array(r.count || 1).fill(r.score)).sort((a,b) => a-b);
+  const avg = s.stats?.avg ?? (weighted.length ? weighted.reduce((a,b)=>a+b,0)/weighted.length : null);
+  const median = s.stats?.median ?? (weighted.length ? (
+    weighted.length % 2 === 0
+      ? (weighted[weighted.length/2-1] + weighted[weighted.length/2]) / 2
+      : weighted[Math.floor(weighted.length/2)]
+  ) : null);
+
+  document.getElementById('s-total').textContent = results.length;
+  document.getElementById('s-found').textContent = found.length;
+  document.getElementById('s-found-unit').textContent = hasCount ? `社 / ${totalPersons}名` : '社';
+  document.getElementById('s-avg').textContent = avg !== null ? Number(avg).toFixed(1) : '-';
+  document.getElementById('s-median').textContent = median !== null ? Number(median).toFixed(1) : '-';
+  document.getElementById('s-range').textContent = weighted.length
+    ? `${Math.max(...weighted)} / ${Math.min(...weighted)}` : '-';
+
+  // テーブル
+  if (hasCount) {
+    document.getElementById('thead-row').innerHTML = '<th>#</th><th>企業名</th><th>人数</th><th>就職偏差値</th><th>ランク</th>';
+  }
+  const sorted = [...results].sort((a,b) => (b.score ?? -1) - (a.score ?? -1));
+  document.getElementById('tbody').innerHTML = sorted.map((r, i) => `
+    <tr>
+      <td style="color:#a0aec0">${i+1}</td>
+      <td>${esc(r.name)}</td>
+      ${hasCount ? `<td style="color:#718096">${r.count || 1}名</td>` : ''}
+      <td>${scoreBadge(r.score)}</td>
+      <td style="font-size:0.8rem;color:#718096">${rankLabel(r.score)}</td>
+    </tr>
+  `).join('');
+
+  // ヒストグラム
+  const bins = [];
+  for (let s2 = 50; s2 <= 80; s2 += 5) {
+    const label = s2 === 80 ? '80' : `${s2}-${s2+4}`;
+    const cnt = weighted.filter(v => s2 === 80 ? v >= 80 : v >= s2 && v < s2+5).length;
+    bins.push({ label, cnt, s: s2 });
+  }
+  new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: bins.map(b => b.label),
+      datasets: [{
+        label: hasCount ? '人数' : '企業数',
+        data: bins.map(b => b.cnt),
+        backgroundColor: bins.map(b =>
+          b.s >= 75 ? 'rgba(252,129,129,0.8)' : b.s >= 70 ? 'rgba(246,173,85,0.8)' :
+          b.s >= 65 ? 'rgba(246,224,94,0.8)' : b.s >= 60 ? 'rgba(104,211,145,0.8)' : 'rgba(99,179,237,0.8)'
+        ),
+        borderWidth: 0, borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f0f4f8' } },
+        x: { grid: { display: false } },
+      }
+    }
+  });
+
+  // ドーナツ
+  const ranks = [
+    { label: '最難関(75+)', cnt: weighted.filter(v=>v>=75).length, color: 'rgba(252,129,129,0.85)' },
+    { label: '難関(70-74)', cnt: weighted.filter(v=>v>=70&&v<75).length, color: 'rgba(246,173,85,0.85)' },
+    { label: '上位(65-69)', cnt: weighted.filter(v=>v>=65&&v<70).length, color: 'rgba(246,224,94,0.85)' },
+    { label: '中上位(60-64)', cnt: weighted.filter(v=>v>=60&&v<65).length, color: 'rgba(104,211,145,0.85)' },
+    { label: '一般(50-59)', cnt: weighted.filter(v=>v<60).length, color: 'rgba(99,179,237,0.85)' },
+  ].filter(r => r.cnt > 0);
+  new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ranks.map(r => r.label),
+      datasets: [{ data: ranks.map(r => r.cnt), backgroundColor: ranks.map(r => r.color), borderWidth: 2, borderColor: '#fff' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } }
+    }
+  });
+
+  // 未収録
+  const notFound = results.filter(r => r.score === null);
+  if (notFound.length) {
+    document.getElementById('not-found-card').style.display = '';
+    document.getElementById('not-found-list').innerHTML =
+      notFound.map(r => `<span class="not-found-tag">${esc(r.name)}</span>`).join('');
+  }
+}
+
+load();
+
+fetch('/api/admin/check', { credentials: 'include' })
+  .then(r => { if (r.ok) document.getElementById('admin-link').style.display = ''; })
+  .catch(() => {});
+</script>
+</body>
+</html>

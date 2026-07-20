@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>就職先偏差値アナライザー</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Hiragino Sans', 'Noto Sans JP', sans-serif; background: #f0f4f8; color: #1a202c; }
+
+  .header {
+    background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+    color: white;
+    padding: 24px 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header h1 { font-size: 1.5rem; font-weight: 700; }
+  .header p { margin-top: 4px; font-size: 0.875rem; opacity: 0.8; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .card h2 { font-size: 1rem; font-weight: 600; color: #4a5568; margin-bottom: 12px; }
+
+  textarea {
+    width: 100%;
+    height: 180px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { outline: none; border-color: #667eea; }
+
+  .hint {
+    margin-top: 8px;
+    font-size: 0.8rem;
+    color: #718096;
+  }
+
+  .btn {
+    display: inline-block;
+    padding: 10px 28px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary { background: #667eea; color: white; margin-top: 12px; }
+  .btn-primary:hover { background: #5a67d8; transform: translateY(-1px); }
+  .btn-secondary { background: #e2e8f0; color: #4a5568; margin-left: 8px; }
+  .btn-secondary:hover { background: #cbd5e0; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border-top: 4px solid;
+  }
+  .stat-box.blue { border-color: #667eea; }
+  .stat-box.green { border-color: #48bb78; }
+  .stat-box.orange { border-color: #ed8936; }
+  .stat-box.red { border-color: #fc8181; }
+  .stat-box.purple { border-color: #9f7aea; }
+
+  .stat-label { font-size: 0.8rem; color: #718096; margin-bottom: 8px; }
+  .stat-value { font-size: 2rem; font-weight: 700; color: #2d3748; }
+  .stat-unit { font-size: 0.85rem; color: #718096; }
+
+  .chart-row { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .chart-row { grid-template-columns: 1fr; } }
+
+  .chart-wrapper { position: relative; height: 280px; }
+
+  .result-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .result-table th {
+    background: #f7fafc;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    color: #4a5568;
+    border-bottom: 2px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+  }
+  .result-table td { padding: 9px 14px; border-bottom: 1px solid #f0f4f8; }
+  .result-table tr:hover td { background: #f7fafc; }
+
+  .score-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 0.875rem;
+  }
+  .score-high { background: #fed7d7; color: #c53030; }
+  .score-mid-high { background: #feebc8; color: #c05621; }
+  .score-mid { background: #fefcbf; color: #744210; }
+  .score-low-mid { background: #c6f6d5; color: #276749; }
+  .score-low { background: #bee3f8; color: #2b6cb0; }
+  .score-none { background: #e2e8f0; color: #718096; }
+
+  .table-scroll { max-height: 360px; overflow-y: auto; }
+
+  #results { display: none; }
+
+  .not-found-list { font-size: 0.85rem; color: #718096; }
+  .not-found-tag {
+    display: inline-block;
+    background: #f0f4f8;
+    border-radius: 4px;
+    padding: 2px 8px;
+    margin: 2px;
+    font-size: 0.8rem;
+  }
+
+  /* 保存モーダル */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 14px;
+    padding: 28px;
+    width: 360px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  }
+  .modal h3 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; color: #2d3748; }
+  .modal input[type=text] {
+    width: 100%;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    margin-bottom: 14px;
+  }
+  .modal input[type=text]:focus { outline: none; border-color: #667eea; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* 保存一覧 */
+  .saves-list { display: flex; flex-direction: column; gap: 10px; }
+  .save-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #fafafa;
+    transition: background 0.15s;
+  }
+  .save-item:hover { background: #f0f4f8; }
+  .save-info { flex: 1; min-width: 0; }
+  .save-name { font-weight: 600; font-size: 0.95rem; color: #2d3748; }
+  .save-meta { font-size: 0.78rem; color: #718096; margin-top: 2px; }
+  .save-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .btn-sm {
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .btn-load { background: #ebf4ff; color: #2b6cb0; }
+  .btn-load:hover { background: #bee3f8; }
+  .btn-del { background: #fff5f5; color: #c53030; }
+  .btn-del:hover { background: #fed7d7; }
+  .saves-empty { color: #a0aec0; font-size: 0.875rem; text-align: center; padding: 20px 0; }
+
+  /* PDFアップロード */
+  .pdf-drop-zone {
+    border: 2px dashed #cbd5e0;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    color: #718096;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+    background: #fafafa;
+  }
+  .pdf-drop-zone:hover, .pdf-drop-zone.drag-over {
+    border-color: #667eea;
+    background: #ebf4ff;
+    color: #4a5568;
+  }
+  .pdf-drop-zone input[type=file] { display: none; }
+  .pdf-progress {
+    font-size: 0.82rem;
+    color: #667eea;
+    margin-top: 6px;
+    min-height: 1.2em;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1>就職先偏差値アナライザー</h1>
+      <p>大学の就職先リストから偏差値分布・平均・中央値を分析します（データ出典: corp-ratings.com）</p>
+    </div>
+    <a href="/reports" style="color:rgba(255,255,255,0.7);font-size:0.85rem;text-decoration:none;white-space:nowrap;margin-top:4px;padding:6px 14px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;transition:all 0.2s"
+       onmouseover="this.style.color='white';this.style.borderColor='white'"
+       onmouseout="this.style.color='rgba(255,255,255,0.7)';this.style.borderColor='rgba(255,255,255,0.3)'">
+      レポート一覧 →
+    </a>
+  </div>
+</div>
+
+<!-- 保存モーダル -->
+<div class="modal-overlay" id="save-modal">
+  <div class="modal">
+    <h3>分析結果を保存</h3>
+    <input type="text" id="save-name-input" placeholder="名前を入力（例：経済学部2025年）" maxlength="60">
+    <div class="modal-actions">
+      <button class="btn btn-secondary btn-sm" style="padding:8px 18px" onclick="closeSaveModal()">キャンセル</button>
+      <button class="btn btn-primary btn-sm" style="padding:8px 18px;margin-top:0" onclick="confirmSave()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="card">
+    <h2>就職先リストを入力</h2>
+
+    <div class="pdf-drop-zone" id="pdf-drop-zone" onclick="document.getElementById('pdf-file-input').click()"
+         ondragover="onPdfDragOver(event)" ondragleave="onPdfDragLeave(event)" ondrop="onPdfDrop(event)">
+      <input type="file" id="pdf-file-input" accept=".pdf" onchange="onPdfSelected(event)">
+      📄 PDFをドラッグ＆ドロップ、またはクリックして選択（テキストを自動抽出してリストに追加）
+    </div>
+    <div class="pdf-progress" id="pdf-progress"></div>
+
+    <textarea id="input" placeholder="例（改行・スペース・読点・カンマ区切りなど混在可）:
+5名
+トヨタ自動車
+ソニー
+三菱商事、伊藤忠商事
+NTTデータ　富士通（2名）
+東京都庁"></textarea>
+    <div class="hint">改行・スペース・カンマ・読点で区切り。「N名」だけの行は後続の会社群への人数として扱います。PDFから自動抽出も可。</div>
+    <div>
+      <button class="btn btn-primary" id="analyze-btn" onclick="analyze()">分析する</button>
+      <button class="btn btn-secondary" onclick="clearAll()">クリア</button>
+    </div>
+    <div id="status-msg" style="margin-top:10px;font-size:0.85rem;"></div>
+  </div>
+
+  <div id="results">
+    <div class="stats-grid">
+      <div class="stat-box blue">
+        <div class="stat-label">対象企業数</div>
+        <div class="stat-value" id="stat-total">-</div>
+        <div class="stat-unit">社</div>
+      </div>
+      <div class="stat-box green">
+        <div class="stat-label">偏差値あり</div>
+        <div class="stat-value" id="stat-found" style="font-size:1.5rem">-</div>
+        <div class="stat-unit" id="stat-found-unit">社</div>
+      </div>
+      <div class="stat-box orange">
+        <div class="stat-label">平均偏差値</div>
+        <div class="stat-value" id="stat-avg">-</div>
+        <div class="stat-unit"></div>
+      </div>
+      <div class="stat-box red">
+        <div class="stat-label">中央値</div>
+        <div class="stat-value" id="stat-median">-</div>
+        <div class="stat-unit"></div>
+      </div>
+      <div class="stat-box purple">
+        <div class="stat-label">最高 / 最低</div>
+        <div class="stat-value" id="stat-range" style="font-size:1.3rem">-</div>
+        <div class="stat-unit"></div>
+      </div>
+    </div>
+
+    <div class="chart-row">
+      <div class="card">
+        <h2>偏差値分布（ヒストグラム）</h2>
+        <div class="chart-wrapper"><canvas id="histChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h2>偏差値帯の割合</h2>
+        <div class="chart-wrapper"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>企業別スコア一覧</h2>
+      <div class="table-scroll">
+        <table class="result-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>企業名</th>
+              <th>就職偏差値</th>
+              <th>ランク</th>
+            </tr>
+          </thead>
+          <tbody id="result-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" id="not-found-card" style="display:none">
+      <h2>偏差値データなし（未収録企業）</h2>
+      <div id="not-found-list" class="not-found-list"></div>
+    </div>
+
+    <div style="text-align:right;margin-bottom:8px">
+      <button class="btn btn-secondary" onclick="openSaveModal()" style="background:#ebf4ff;color:#2b6cb0">この結果を保存</button>
+    </div>
+  </div>
+
+  <div class="card" id="saves-panel">
+    <h2>保存済み分析</h2>
+    <div id="saves-list" class="saves-list">
+      <div class="saves-empty">保存された分析はありません</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let companiesData = {};
+let aliasesData = {};
+let normalizedIndex = {};   // 正規化キー → 最高スコア
+let companiesLoaded = false;
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status-msg');
+  const colors = { info: '#667eea', error: '#e53e3e', success: '#38a169', loading: '#ed8936' };
+  el.style.color = colors[type] || '#4a5568';
+  el.textContent = msg;
+}
+
+// DB側のキーを正規化（↑↓、コース名括弧、スペースを除去）
+function normalizeKey(s) {
+  return s
+    .replace(/[↑↓]/g, '')
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/株式会社|㈱/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+// ユーザー入力を正規化（さらに「(株)」「グループ」「HD」なども除去）
+function normalizeInput(s) {
+  return s
+    .replace(/[↑↓]/g, '')
+    .replace(/[（(][^）)]*[）)]/g, '')
+    .replace(/株式会社|㈱|\(株\)|（株）/g, '')
+    .replace(/グループ$|ホールディングス$|HD$|ＨＤ$/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+async function loadCompanies() {
+  setStatus('企業データを読み込み中...', 'loading');
+  try {
+    const [compRes, aliasRes] = await Promise.all([
+      fetch('/api/companies'),
+      fetch('/aliases.json'),
+    ]);
+    if (!compRes.ok) throw new Error(`companies HTTP ${compRes.status}`);
+    companiesData = await compRes.json();
+    aliasesData = aliasRes.ok ? await aliasRes.json() : {};
+
+    // 正規化インデックスを構築（重複時は最高スコアを採用）
+    normalizedIndex = {};
+    for (const [key, score] of Object.entries(companiesData)) {
+      const norm = normalizeKey(key);
+      if (normalizedIndex[norm] === undefined || normalizedIndex[norm] < score) {
+        normalizedIndex[norm] = score;
+      }
+    }
+
+    companiesLoaded = true;
+    const count = Object.keys(companiesData).length;
+    setStatus(`${count}社のデータを読み込みました。就職先リストを入力して「分析する」を押してください。`, 'success');
+  } catch (e) {
+    setStatus(`企業データの読み込みに失敗しました: ${e.message}`, 'error');
+  }
+}
+
+// 1社分のスコアをルックアップ（段階的にフォールバック）
+function lookupScore(name) {
+  // 1. 完全一致
+  if (companiesData[name] !== undefined) return { score: companiesData[name], method: 'exact' };
+
+  // 2. 入力を正規化して正規化インデックスと照合
+  const normInput = normalizeInput(name);
+  if (normalizedIndex[normInput] !== undefined) return { score: normalizedIndex[normInput], method: 'normalized' };
+
+  // 3. エイリアス辞書を参照（入力 → DBキー候補）
+  const aliasCandidates = aliasesData[name] || aliasesData[normInput] || [];
+  for (const candidate of aliasCandidates) {
+    const normCand = normalizeKey(candidate);
+    if (normalizedIndex[normCand] !== undefined) return { score: normalizedIndex[normCand], method: 'alias' };
+    if (companiesData[candidate] !== undefined) return { score: companiesData[candidate], method: 'alias' };
+  }
+
+  // 4. 逆引き：DBキー側の正規化名がユーザー入力を含む／含まれる
+  for (const [normKey, score] of Object.entries(normalizedIndex)) {
+    if (normKey.length >= 3 && normInput.length >= 3) {
+      if (normKey === normInput) return { score, method: 'normalized' };
+      // DBキーがユーザー入力を含む場合のみ部分一致（逆方向は子会社・地域会社の誤ヒットになるため不可）
+      if (normKey.includes(normInput) && normInput.length >= 4) return { score, method: 'partial' };
+    }
+  }
+
+  return { score: null, method: 'none' };
+}
+
+loadCompanies();
+
+// { name, count } の配列を返す。人数が明記されていない場合は count=1
+function parseCompanyNames(text) {
+  const results = [];
+  let lineCount = 1; // 「N名」行で設定される、後続行へ引き継がれる人数
+
+  // 1行ずつ処理
+  const lines = text.split(/[\n\r]+/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    // 「5名」「3人」「10」のみの行 → 後続の会社群に適用する人数
+    if (/^[\d０-９]+[名人]?$/.test(line)) {
+      lineCount = parseInt(line.replace(/[名人]/g, '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+      continue;
+    }
+
+    // 1行内をカンマ・スペース・読点で分割して複数社に対応
+    const tokens = line.split(/[,、，\t　 /／]+/);
+    for (let token of tokens) {
+      token = token.trim();
+      if (!token) continue;
+
+      // インライン人数（例: トヨタ自動車（5名）や トヨタ自動車 5名）を優先
+      let count = lineCount;
+      const inlineMatch = token.match(/[（(](\d+)[名人]?[）)]/) || token.match(/(\d+)[名人]$/);
+      if (inlineMatch) count = parseInt(inlineMatch[1]);
+
+      // 不要な文字を除去してクリーンな会社名を取り出す
+      let name = token
+        .replace(/[（(]\d+[名人]?[）)]/g, '')   // （5名）
+        .replace(/\s*\d+[名人]\s*$/, '')          // 末尾の「5名」
+        .replace(/[（(][^)）]*[）)]$/g, '')        // その他括弧注釈
+        .replace(/^[①②③④⑤⑥⑦⑧⑨⑩\d]+[.．、\s]+/, '') // 先頭番号
+        .trim();
+
+      if (name.length >= 2) {
+        results.push({ name, count });
+      }
+    }
+  }
+
+  // 同名会社は人数を合算
+  const merged = new Map();
+  for (const { name, count } of results) {
+    merged.set(name, (merged.get(name) ?? 0) + count);
+  }
+  return Array.from(merged.entries()).map(([name, count]) => ({ name, count }));
+}
+
+function getScoreBadge(score) {
+  if (score === null) return `<span class="score-badge score-none">未収録</span>`;
+  let cls = 'score-low';
+  let label = score;
+  if (score >= 75) cls = 'score-high';
+  else if (score >= 70) cls = 'score-mid-high';
+  else if (score >= 65) cls = 'score-mid';
+  else if (score >= 60) cls = 'score-low-mid';
+  return `<span class="score-badge ${cls}">${score}</span>`;
+}
+
+function getRankLabel(score) {
+  if (score === null) return '-';
+  if (score >= 75) return '最難関';
+  if (score >= 70) return '難関';
+  if (score >= 65) return '上位';
+  if (score >= 60) return '中上位';
+  if (score >= 55) return '中堅';
+  return '一般';
+}
+
+let histChartObj = null;
+let pieChartObj = null;
+
+async function analyze() {
+  if (!companiesLoaded) {
+    setStatus('企業データをまだ読み込み中です。少し待ってから再度押してください。', 'loading');
+    // Retry load if it failed
+    await loadCompanies();
+    if (!companiesLoaded) return;
+  }
+
+  const text = document.getElementById('input').value.trim();
+  if (!text) {
+    setStatus('就職先リストを入力してください。', 'info');
+    return;
+  }
+
+  const names = parseCompanyNames(text);
+  if (names.length === 0) {
+    setStatus('企業名を認識できませんでした。改行・スペース・カンマで区切って入力してください。', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+  setStatus(`${names.length}社を照合中...`, 'loading');
+
+  try {
+
+  // Lookup scores
+  const results = names.map(({ name, count }) => {
+    const { score, method } = lookupScore(name);
+    return { name, count, score, method };
+  });
+
+  const found = results.filter(r => r.score !== null);
+  const totalPersons = found.reduce((s, r) => s + r.count, 0);
+
+  // 人数を重みとした展開リスト（加重統計用）
+  const weightedScores = found.flatMap(r => Array(r.count).fill(r.score)).sort((a, b) => a - b);
+
+  const avg = weightedScores.length
+    ? weightedScores.reduce((s, v) => s + v, 0) / weightedScores.length : null;
+  const median = weightedScores.length ? (
+    weightedScores.length % 2 === 0
+      ? (weightedScores[weightedScores.length/2 - 1] + weightedScores[weightedScores.length/2]) / 2
+      : weightedScores[Math.floor(weightedScores.length/2)]
+  ) : null;
+
+  const totalCompanies = results.length;
+  const hasCount = results.some(r => r.count > 1);
+
+  // Update stats
+  document.getElementById('stat-total').textContent = totalCompanies;
+  document.getElementById('stat-found').textContent = found.length;
+  document.getElementById('stat-found-unit').textContent = hasCount ? `社 / ${totalPersons}名` : '社';
+  document.getElementById('stat-avg').textContent = avg !== null ? avg.toFixed(1) : '-';
+  document.getElementById('stat-median').textContent = median !== null ? median.toFixed(1) : '-';
+  document.getElementById('stat-range').textContent =
+    weightedScores.length ? `${Math.max(...weightedScores)} / ${Math.min(...weightedScores)}` : '-';
+
+  // Table（人数列を人数あり時だけ表示）
+  const tbody = document.getElementById('result-tbody');
+  const thead = document.querySelector('.result-table thead tr');
+  thead.innerHTML = `<th>#</th><th>企業名</th>${hasCount ? '<th>人数</th>' : ''}<th>就職偏差値</th><th>ランク</th>`;
+
+  const sorted = [...results].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const methodLabel = { exact: '', normalized: '正規化', alias: 'エイリアス', partial: '部分一致', none: '' };
+  tbody.innerHTML = sorted.map((r, i) => `
+    <tr>
+      <td style="color:#a0aec0">${i+1}</td>
+      <td>${r.name}${r.method && r.method !== 'exact' && r.method !== 'none' ? `<span style="font-size:0.7rem;color:#a0aec0;margin-left:4px">(${methodLabel[r.method]})</span>` : ''}</td>
+      ${hasCount ? `<td style="color:#718096;font-size:0.875rem">${r.count}名</td>` : ''}
+      <td>${getScoreBadge(r.score)}</td>
+      <td style="font-size:0.8rem;color:#718096">${getRankLabel(r.score)}</td>
+    </tr>
+  `).join('');
+
+  // ヒストグラム（人数ベース）
+  const bins = [];
+  for (let s = 50; s <= 80; s += 5) {
+    const label = s === 80 ? '80' : `${s}-${s+4}`;
+    const cnt = weightedScores.filter(v => s === 80 ? v >= 80 : v >= s && v < s+5).length;
+    bins.push({ label, count: cnt, start: s });
+  }
+
+  const barColors = bins.map(b => {
+    if (b.start >= 75) return 'rgba(252,129,129,0.8)';
+    if (b.start >= 70) return 'rgba(246,173,85,0.8)';
+    if (b.start >= 65) return 'rgba(246,224,94,0.8)';
+    if (b.start >= 60) return 'rgba(104,211,145,0.8)';
+    return 'rgba(99,179,237,0.8)';
+  });
+
+  if (histChartObj) histChartObj.destroy();
+  histChartObj = new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: bins.map(b => b.label),
+      datasets: [{
+        label: hasCount ? '人数' : '企業数',
+        data: bins.map(b => b.count),
+        backgroundColor: barColors,
+        borderWidth: 0,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: '#f0f4f8' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // ドーナツチャート（人数ベース）
+  const rankGroups = [
+    { label: '最難関(75+)', count: weightedScores.filter(s => s >= 75).length, color: 'rgba(252,129,129,0.85)' },
+    { label: '難関(70-74)', count: weightedScores.filter(s => s >= 70 && s < 75).length, color: 'rgba(246,173,85,0.85)' },
+    { label: '上位(65-69)', count: weightedScores.filter(s => s >= 65 && s < 70).length, color: 'rgba(246,224,94,0.85)' },
+    { label: '中上位(60-64)', count: weightedScores.filter(s => s >= 60 && s < 65).length, color: 'rgba(104,211,145,0.85)' },
+    { label: '一般(50-59)', count: weightedScores.filter(s => s < 60).length, color: 'rgba(99,179,237,0.85)' },
+  ].filter(g => g.count > 0);
+
+  if (pieChartObj) pieChartObj.destroy();
+  pieChartObj = new Chart(document.getElementById('pieChart'), {
+    type: 'doughnut',
+    data: {
+      labels: rankGroups.map(g => g.label),
+      datasets: [{
+        data: rankGroups.map(g => g.count),
+        backgroundColor: rankGroups.map(g => g.color),
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } }
+      }
+    }
+  });
+
+  // Not found
+  const notFound = results.filter(r => r.score === null);
+  const nfCard = document.getElementById('not-found-card');
+  if (notFound.length > 0) {
+    nfCard.style.display = '';
+    document.getElementById('not-found-list').innerHTML =
+      notFound.map(r => `<span class="not-found-tag">${r.name}</span>`).join('');
+  } else {
+    nfCard.style.display = 'none';
+  }
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
+  const hitRate = found.length + '/' + results.length;
+  setStatus(`分析完了（${hitRate}社をデータベースと照合）`, 'success');
+
+  // 現在の結果を保存用に保持
+  currentAnalysis = {
+    inputText: text,
+    results,
+    stats: { avg, median, max: weightedScores.length ? Math.max(...weightedScores) : null, min: weightedScores.length ? Math.min(...weightedScores) : null },
+  };
+
+  } catch (e) {
+    setStatus(`分析中にエラーが発生しました: ${e.message}`, 'error');
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '分析する';
+  }
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  document.getElementById('results').style.removeProperty('display');
+  currentAnalysis = null;
+}
+
+// ---- 保存機能 ----
+let currentAnalysis = null;
+let loadedSaveName = null;  // ロード元の名前（別名保存の初期値に使う）
+
+function openSaveModal() {
+  if (!currentAnalysis) {
+    setStatus('先に「分析する」を押してください。', 'info');
+    return;
+  }
+  document.getElementById('save-name-input').value = loadedSaveName || '';
+  document.getElementById('save-modal').classList.add('open');
+  const input = document.getElementById('save-name-input');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+function closeSaveModal() {
+  document.getElementById('save-modal').classList.remove('open');
+}
+
+async function confirmSave() {
+  const name = document.getElementById('save-name-input').value.trim();
+  if (!name) { document.getElementById('save-name-input').focus(); return; }
+  try {
+    const res = await fetch('/api/saves', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, ...currentAnalysis }),
+    });
+    if (!res.ok) throw new Error('保存失敗');
+    closeSaveModal();
+    setStatus(`「${name}」として保存しました`, 'success');
+    await renderSaves();
+  } catch (e) {
+    setStatus('保存エラー: ' + e.message, 'error');
+  }
+}
+
+async function renderSaves() {
+  const container = document.getElementById('saves-list');
+  try {
+    const res = await fetch('/api/admin/saves');
+    const list = await res.json();
+    if (list.length === 0) {
+      container.innerHTML = '<div class="saves-empty">保存された分析はありません</div>';
+      return;
+    }
+    container.innerHTML = list.map(s => `
+      <div class="save-item">
+        <div class="save-info">
+          <div class="save-name">
+            ${escHtml(s.name)}
+            <span style="display:inline-block;margin-left:8px;font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#e2e8f0;color:#718096'}">
+              ${s.published ? '公開中' : '非公開'}
+            </span>
+          </div>
+          <div class="save-meta">${new Date(s.savedAt).toLocaleString('ja-JP')} &nbsp;|&nbsp; ${s.companyCount}社 &nbsp;|&nbsp; 平均 ${s.avg !== null ? Number(s.avg).toFixed(1) : '-'} / 中央値 ${s.median !== null ? Number(s.median).toFixed(1) : '-'}</div>
+        </div>
+        <div class="save-actions">
+          <button class="btn-sm btn-load" onclick="loadSave('${s.id}')">ロード</button>
+          <button class="btn-sm" style="${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#ebf4ff;color:#2b6cb0'}" onclick="togglePublish('${s.id}', this)">
+            ${s.published ? '非公開にする' : '公開する'}
+          </button>
+          <button class="btn-sm btn-del" onclick="deleteSave('${s.id}', this)">削除</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    container.innerHTML = '<div class="saves-empty">読み込みエラー</div>';
+  }
+}
+
+async function togglePublish(id, btn) {
+  try {
+    const res = await fetch(`/api/saves/${id}/publish`, { method: 'PATCH' });
+    const { published } = await res.json();
+    setStatus(published ? '公開しました' : '非公開にしました', 'success');
+    await renderSaves();
+  } catch (e) {
+    setStatus('エラー: ' + e.message, 'error');
+  }
+}
+
+async function loadSave(id) {
+  try {
+    const res = await fetch(`/api/saves/${id}`);
+    if (!res.ok) throw new Error('not found');
+    const s = await res.json();
+    document.getElementById('input').value = s.inputText || '';
+    loadedSaveName = s.name;
+    currentAnalysis = null;  // 再分析するまで保存不可にする
+    document.getElementById('results').style.removeProperty('display');
+    setStatus(`「${escHtml(s.name)}」をロードしました。追記・確認して「分析する」を押してください。`, 'info');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) {
+    setStatus('ロードエラー: ' + e.message, 'error');
+  }
+}
+
+async function deleteSave(id, btn) {
+  if (!confirm('この保存データを削除しますか？')) return;
+  try {
+    await fetch(`/api/saves/${id}`, { method: 'DELETE' });
+    await renderSaves();
+  } catch (e) {
+    setStatus('削除エラー: ' + e.message, 'error');
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// モーダルをEnterキーで確定、Escで閉じる
+document.getElementById('save-name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') confirmSave();
+  if (e.key === 'Escape') closeSaveModal();
+});
+document.getElementById('save-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('save-modal')) closeSaveModal();
+});
+
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) analyze();
+});
+
+renderSaves();
+
+// ---- PDF抽出 ----
+const PDFJS_CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
+const PDFJS_WORKER = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+function setPdfProgress(msg, color) {
+  const el = document.getElementById('pdf-progress');
+  el.textContent = msg;
+  el.style.color = color || '#667eea';
+}
+
+async function extractTextFromPdf(file) {
+  setPdfProgress('PDF.jsを読み込み中...', '#ed8936');
+  const { getDocument, GlobalWorkerOptions } = await import(PDFJS_CDN);
+  GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdf.numPages;
+  let allText = '';
+
+  for (let i = 1; i <= numPages; i++) {
+    setPdfProgress(`テキスト抽出中… ${i}/${numPages}ページ`, '#667eea');
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // アイテムをy座標→x座標順に並べ替えて改行を再現
+    const items = content.items.filter(it => it.str);
+    let lastY = null;
+    for (const item of items) {
+      const y = Math.round(item.transform[5]);
+      if (lastY !== null && Math.abs(y - lastY) > 3) allText += '\n';
+      allText += item.str;
+      lastY = y;
+    }
+    allText += '\n';
+  }
+
+  return allText;
+}
+
+async function handlePdfFile(file) {
+  if (!file || file.type !== 'application/pdf') {
+    setPdfProgress('PDFファイルを選択してください', '#e53e3e');
+    return;
+  }
+  try {
+    const text = await extractTextFromPdf(file);
+    const textarea = document.getElementById('input');
+    const existing = textarea.value.trim();
+    textarea.value = existing ? existing + '\n' + text : text;
+    setPdfProgress(`抽出完了（${file.name}）。内容を確認して「分析する」を押してください。`, '#38a169');
+  } catch (e) {
+    setPdfProgress('PDF読み込みエラー: ' + e.message, '#e53e3e');
+    console.error(e);
+  }
+}
+
+function onPdfSelected(e) {
+  handlePdfFile(e.target.files[0]);
+  e.target.value = '';
+}
+
+function onPdfDragOver(e) {
+  e.preventDefault();
+  document.getElementById('pdf-drop-zone').classList.add('drag-over');
+}
+
+function onPdfDragLeave(e) {
+  document.getElementById('pdf-drop-zone').classList.remove('drag-over');
+}
+
+function onPdfDrop(e) {
+  e.preventDefault();
+  document.getElementById('pdf-drop-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  handlePdfFile(file);
+}
+</script>
+</body>
+</html>
