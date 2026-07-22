@@ -1,5 +1,6 @@
 node_modules/
 .env
+.env.local
 saves.json
 .firebase/
 firebase-debug.log

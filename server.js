@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -28,14 +28,17 @@ function writeSaves(data) {
   fs.writeFileSync(SAVES_FILE, JSON.stringify(data, null, 2));
 }
 
+// ページ用（ブラウザに認証ダイアログを表示させる）
 function basicAuth(req, res, next) {
-  const auth = req.headers.authorization;
-  if (auth && auth.startsWith('Basic ')) {
-    const [user, pass] = Buffer.from(auth.slice(6), 'base64').toString().split(':');
-    if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
-  }
+  if (isAdmin(req)) return next();
   res.setHeader('WWW-Authenticate', 'Basic realm="Analyzer"');
   res.status(401).send('認証が必要です');
+}
+
+// API用（WWW-Authenticateヘッダーを送らない → ダイアログが出ない）
+function apiAuth(req, res, next) {
+  if (isAdmin(req)) return next();
+  res.status(401).json({ error: 'unauthorized' });
 }
 
 function isAdmin(req) {
@@ -51,7 +54,7 @@ app.get('/reports', (req, res) => res.sendFile(path.join(__dirname, 'public', 'r
 app.get('/reports/:id', (req, res) => res.sendFile(path.join(__dirname, 'public', 'report.html')));
 
 // 認証チェック
-app.get('/api/admin/check', basicAuth, (req, res) => res.json({ ok: true }));
+app.get('/api/admin/check', apiAuth, (req, res) => res.json({ ok: true }));
 
 // アナライザー
 app.get('/admin', basicAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'analyzer.html')));
@@ -73,7 +76,7 @@ app.get('/api/saves', (req, res) => {
 });
 
 // 管理者用: 全件（公開・非公開）
-app.get('/api/admin/saves', basicAuth, (req, res) => {
+app.get('/api/admin/saves', apiAuth, (req, res) => {
   const saves = loadSaves();
   const list = Object.entries(saves).map(([id, s]) => {
     const results = s.results || [];
@@ -98,7 +101,7 @@ app.get('/api/admin/saves', basicAuth, (req, res) => {
 });
 
 // 保存（デフォルト非公開）
-app.post('/api/saves', basicAuth, (req, res) => {
+app.post('/api/saves', apiAuth, (req, res) => {
   const { name, inputText, results, stats, sources } = req.body;
   if (!name || !results) return res.status(400).json({ error: 'name and results required' });
   const saves = loadSaves();
@@ -109,7 +112,7 @@ app.post('/api/saves', basicAuth, (req, res) => {
 });
 
 // 上書き保存
-app.put('/api/saves/:id', basicAuth, (req, res) => {
+app.put('/api/saves/:id', apiAuth, (req, res) => {
   const saves = loadSaves();
   const s = saves[req.params.id];
   if (!s) return res.status(404).json({ error: 'not found' });
@@ -128,7 +131,7 @@ app.put('/api/saves/:id', basicAuth, (req, res) => {
 });
 
 // 公開状態の切り替え
-app.patch('/api/saves/:id/publish', basicAuth, (req, res) => {
+app.patch('/api/saves/:id/publish', apiAuth, (req, res) => {
   const saves = loadSaves();
   const s = saves[req.params.id];
   if (!s) return res.status(404).json({ error: 'not found' });
@@ -147,7 +150,7 @@ app.get('/api/saves/:id', (req, res) => {
 });
 
 // 削除
-app.delete('/api/saves/:id', basicAuth, (req, res) => {
+app.delete('/api/saves/:id', apiAuth, (req, res) => {
   const saves = loadSaves();
   if (!saves[req.params.id]) return res.status(404).json({ error: 'not found' });
   delete saves[req.params.id];

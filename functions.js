@@ -5,11 +5,12 @@ const { defineSecret } = require('firebase-functions/params');
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const admin = require('firebase-admin');
+const { initializeApp } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 
 // Firestore
-admin.initializeApp();
-const db = admin.firestore();
+initializeApp();
+const db = getFirestore();
 const SAVES_COL = 'saves';
 
 // シークレット定義（firebase functions:secrets:set で設定）
@@ -64,6 +65,11 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
     res.status(401).send('認証が必要です');
   }
 
+  function apiAuth(req, res, next) {
+    if (isAdmin(req)) return next();
+    res.status(401).json({ error: 'unauthorized' });
+  }
+
   app.get('/', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'reports.html')));
   app.get('/reports', (req, res) =>
@@ -73,7 +79,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   app.get('/admin', basicAuth, (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'analyzer.html')));
 
-  app.get('/api/admin/check', basicAuth, (req, res) => res.json({ ok: true }));
+  app.get('/api/admin/check', apiAuth, (req, res) => res.json({ ok: true }));
 
   app.get('/api/companies', (req, res) => res.json(companies));
 
@@ -94,7 +100,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   });
 
   // 管理者用全件
-  app.get('/api/admin/saves', basicAuth, async (req, res) => {
+  app.get('/api/admin/saves', apiAuth, async (req, res) => {
     const snap = await db.collection(SAVES_COL).orderBy('savedAt', 'desc').get();
     const list = [];
     snap.forEach(doc => {
@@ -119,7 +125,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   });
 
   // 保存
-  app.post('/api/saves', basicAuth, async (req, res) => {
+  app.post('/api/saves', apiAuth, async (req, res) => {
     const { name, inputText, results, stats, sources, sections } = req.body;
     if (!name || !results) return res.status(400).json({ error: 'name and results required' });
     const id = Date.now().toString();
@@ -132,7 +138,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   });
 
   // 上書き保存
-  app.put('/api/saves/:id', basicAuth, async (req, res) => {
+  app.put('/api/saves/:id', apiAuth, async (req, res) => {
     const s = await getSave(req.params.id);
     if (!s) return res.status(404).json({ error: 'not found' });
     const { name, inputText, results, stats, sources, sections, comment } = req.body;
@@ -150,7 +156,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   });
 
   // 公開切り替え
-  app.patch('/api/saves/:id/publish', basicAuth, async (req, res) => {
+  app.patch('/api/saves/:id/publish', apiAuth, async (req, res) => {
     const s = await getSave(req.params.id);
     if (!s) return res.status(404).json({ error: 'not found' });
     const published = !(s.published ?? false);
@@ -167,7 +173,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
   });
 
   // 削除
-  app.delete('/api/saves/:id', basicAuth, async (req, res) => {
+  app.delete('/api/saves/:id', apiAuth, async (req, res) => {
     if (!(await getSave(req.params.id))) return res.status(404).json({ error: 'not found' });
     await deleteSave(req.params.id);
     res.json({ ok: true });
@@ -178,7 +184,7 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
 
 // Cloud Functions エクスポート
 exports.api = onRequest(
-  { secrets: [adminUser, adminPass], region: 'asia-northeast1' },
+  { secrets: [adminUser, adminPass], region: 'us-central1' },
   (req, res) => {
     const app = createApp(adminUser.value(), adminPass.value());
     return app(req, res);

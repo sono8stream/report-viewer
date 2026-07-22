@@ -2,7 +2,8 @@
 // 実行前に: firebase login && firebase use YOUR_PROJECT_ID
 // 実行: node scripts/migrate-to-firestore.js
 
-const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,8 +14,14 @@ if (!fs.existsSync(SAVES_FILE)) {
   process.exit(0);
 }
 
-admin.initializeApp();
-const db = admin.firestore();
+// サービスアカウントキーのパス（引数 or 環境変数）
+const keyPath = process.argv[2] || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (keyPath) {
+  initializeApp({ credential: cert(require(path.resolve(keyPath))) });
+} else {
+  initializeApp();
+}
+const db = getFirestore();
 
 async function migrate() {
   const saves = JSON.parse(fs.readFileSync(SAVES_FILE, 'utf8'));
