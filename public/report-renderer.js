@@ -65,8 +65,8 @@ function renderReport(container, data) {
       </div>
       <div class="rr-stat c-green">
         <div class="rr-stat-label">偏差値評価対象</div>
-        <div class="rr-stat-value" style="font-size:1.4rem">${found.length}</div>
-        <div class="rr-stat-unit">${hasCount ? `社 / ${foundPersons}名` : '社'}${coverage !== null ? `（収録率 ${coverage}%）` : ''}</div>
+        <div class="rr-stat-value" style="font-size:1.4rem">${hasCount ? foundPersons : found.length}</div>
+        <div class="rr-stat-unit">${hasCount ? `名 / ${allPersons}名` : '社'}${coverage !== null ? `（${coverage}%）` : ''}</div>
       </div>
       <div class="rr-stat c-orange">
         <div class="rr-stat-label">平均偏差値</div>
@@ -84,6 +84,18 @@ function renderReport(container, data) {
         <div class="rr-stat-unit"></div>
       </div>
     </div>
+
+    ${(() => {
+      // sections 優先、なければ旧 comment をフォールバック表示
+      const sections = data.sections && data.sections.length
+        ? data.sections
+        : (data.comment ? [{ label: '所感', content: data.comment }] : []);
+      return sections.map(s => s.content ? `
+        <div class="rr-card" style="border-left:4px solid #667eea;background:#f8f9ff">
+          <h2>${esc(s.label || 'メモ')}</h2>
+          <div style="font-size:.9rem;color:#2d3748;line-height:1.8;white-space:pre-wrap">${esc(s.content)}</div>
+        </div>` : '').join('');
+    })()}
 
     <div class="rr-chart-row">
       <div class="rr-card">

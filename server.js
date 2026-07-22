@@ -89,6 +89,8 @@ app.get('/api/admin/saves', basicAuth, (req, res) => {
       coverage,
       sources: s.sources || [],
       sourceCount: (s.sources || []).length,
+      comment: s.comment || '',
+      sections: s.sections || [],
     };
   });
   list.sort((a, b) => b.savedAt - a.savedAt);

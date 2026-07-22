@@ -241,13 +241,24 @@
   </div>
 </div>
 
-<!-- 編集モーダル -->
+<!-- 記事編集モーダル -->
 <div class="modal-overlay" id="edit-modal">
-  <div class="modal" style="width:420px">
-    <h3>レポートを編集</h3>
-    <input type="text" id="edit-name-input" placeholder="名前" maxlength="60">
-    <div style="font-size:0.8rem;color:#718096;margin-bottom:6px">出典・参考リンク（1行1URL）</div>
-    <textarea id="edit-sources-input" placeholder="就職先一覧ページ https://example.ac.jp/career/&#10;就職状況報告書 https://example.ac.jp/career/report.pdf&#10;https://example.ac.jp/career/data.html" style="width:100%;height:100px;border:2px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-family:inherit;resize:vertical;margin-bottom:14px"></textarea>
+  <div class="modal" style="width:600px;max-width:95vw;max-height:92vh;overflow-y:auto">
+    <h3>記事編集</h3>
+
+    <div style="font-size:0.8rem;color:#718096;margin-bottom:4px">タイトル</div>
+    <input type="text" id="edit-name-input" placeholder="例：東京大学 電気系 2025年度" maxlength="60" style="margin-bottom:20px">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:0.8rem;color:#718096">テキストセクション</div>
+      <button onclick="addEditSection()" style="background:#667eea;color:white;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;cursor:pointer">＋ 追加</button>
+    </div>
+    <div id="edit-sections-container" style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px"></div>
+
+    <div style="font-size:0.8rem;color:#718096;margin-bottom:4px">出典・参考リンク（任意・1行1件）</div>
+    <div style="font-size:0.75rem;color:#a0aec0;margin-bottom:6px">「ラベル URL」形式でラベルを付けられます</div>
+    <textarea id="edit-sources-input" placeholder="就職先一覧ページ https://example.ac.jp/career/&#10;就職状況報告書 https://example.ac.jp/career/report.pdf" style="width:100%;height:90px;border:2px solid #e2e8f0;border-radius:8px;padding:8px 10px;font-size:0.82rem;font-family:inherit;resize:vertical;margin-bottom:16px"></textarea>
+
     <div class="modal-actions">
       <button class="btn btn-secondary btn-sm" style="padding:8px 18px" onclick="closeEditModal()">キャンセル</button>
       <button class="btn btn-primary btn-sm" style="padding:8px 18px;margin-top:0" onclick="confirmEdit()">保存</button>
@@ -576,42 +587,60 @@ async function confirmSave() {
   }
 }
 
+let savesCache = {};
+
 async function renderSaves() {
   const container = document.getElementById('saves-list');
   try {
     const res = await fetch('/api/admin/saves');
     const list = await res.json();
+    savesCache = {};
+    list.forEach(s => savesCache[s.id] = s);
+
     if (list.length === 0) {
       container.innerHTML = '<div class="saves-empty">保存された分析はありません</div>';
       return;
     }
-    container.innerHTML = list.map(s => `
-      <div class="save-item" style="flex-direction:column;align-items:stretch;gap:8px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="save-name">${escHtml(s.name)}</span>
-          <span style="font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#e2e8f0;color:#718096'}">
-            ${s.published ? '公開中' : '非公開'}
-          </span>
-        </div>
-        <div class="save-meta">
-          ${new Date(s.savedAt).toLocaleString('ja-JP')}
-          &nbsp;|&nbsp; ${s.companyCount}社
-          &nbsp;|&nbsp; 平均 ${s.avg !== null ? Number(s.avg).toFixed(1) : '-'} / 中央値 ${s.median !== null ? Number(s.median).toFixed(1) : '-'}
-          ${s.coverage !== null ? `&nbsp;|&nbsp; 収録率 ${s.coverage}%` : ''}
-          ${s.sourceCount > 0 ? `&nbsp;|&nbsp; 参考リンク ${s.sourceCount}件` : ''}
-        </div>
-        <div class="save-actions" style="justify-content:flex-end">
-          <button class="btn-sm btn-load" onclick="loadSave('${s.id}')">ロード</button>
-          <button class="btn-sm" style="background:#f0f4f8;color:#4a5568" onclick="openEditModal('${s.id}', '${escHtml(s.name).replace(/'/g,"\\'")}', '${(s.sources||[]).join('\n').replace(/'/g,"\\'").replace(/\n/g,'\\n')}')">編集</button>
-          <button class="btn-sm" style="${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#ebf4ff;color:#2b6cb0'}" onclick="togglePublish('${s.id}', this)">
-            ${s.published ? '非公開にする' : '公開する'}
-          </button>
-          <button class="btn-sm btn-del" onclick="deleteSave('${s.id}', this)">削除</button>
-        </div>
-      </div>
-    `).join('');
+
+    container.innerHTML = list.map(s => {
+      const firstSection = (s.sections && s.sections.length) ? s.sections[0] : null;
+      const previewText = firstSection ? firstSection.content : (s.comment || '');
+      const previewLabel = firstSection ? firstSection.label : '所感';
+      const preview = previewText
+        ? `<div style="margin-top:6px;font-size:0.8rem;color:#718096;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${escHtml(previewLabel)}: ${escHtml(previewText.split('\n')[0].slice(0, 60))}${previewText.length > 60 ? '…' : ''}
+           </div>`
+        : '';
+
+      return `
+        <div class="save-item" style="flex-direction:column;align-items:stretch;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="save-name">${escHtml(s.name)}</span>
+            <span style="font-size:0.72rem;font-weight:600;padding:2px 8px;border-radius:10px;${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#e2e8f0;color:#718096'}">
+              ${s.published ? '公開中' : '非公開'}
+            </span>
+          </div>
+          <div class="save-meta">
+            ${new Date(s.savedAt).toLocaleString('ja-JP')}
+            &nbsp;|&nbsp; ${s.companyCount}社
+            &nbsp;|&nbsp; 平均 ${s.avg !== null ? Number(s.avg).toFixed(1) : '-'} / 中央値 ${s.median !== null ? Number(s.median).toFixed(1) : '-'}
+            ${s.coverage !== null ? `&nbsp;|&nbsp; 収録率 ${s.coverage}%` : ''}
+            ${s.sourceCount > 0 ? `&nbsp;|&nbsp; 参考リンク ${s.sourceCount}件` : ''}
+          </div>
+          ${preview}
+          <div class="save-actions" style="justify-content:flex-end">
+            <button class="btn-sm btn-load" onclick="loadSave('${s.id}')">ロード</button>
+            <button class="btn-sm" style="background:#f0f4f8;color:#4a5568" onclick="openEditModalById('${s.id}')">記事編集</button>
+            <button class="btn-sm" style="${s.published ? 'background:#c6f6d5;color:#276749' : 'background:#ebf4ff;color:#2b6cb0'}" onclick="togglePublish('${s.id}', this)">
+              ${s.published ? '非公開にする' : '公開する'}
+            </button>
+            <button class="btn-sm btn-del" onclick="deleteSave('${s.id}', this)">削除</button>
+          </div>
+        </div>`;
+    }).join('');
   } catch (e) {
     container.innerHTML = '<div class="saves-empty">読み込みエラー</div>';
+    console.error('renderSaves error:', e);
   }
 }
 
@@ -636,10 +665,34 @@ async function overwriteSave() {
 
 let editingId = null;
 
-function openEditModal(id, name, sources) {
+function renderEditSections(sections) {
+  const c = document.getElementById('edit-sections-container');
+  c.innerHTML = '';
+  sections.forEach((s, i) => addEditSection(s.label, s.content));
+}
+
+function addEditSection(label = '', content = '') {
+  const c = document.getElementById('edit-sections-container');
+  const idx = c.children.length;
+  const div = document.createElement('div');
+  div.style.cssText = 'border:1px solid #e2e8f0;border-radius:10px;padding:12px;background:#fafafa;position:relative';
+  div.innerHTML = `
+    <button onclick="this.closest('div').remove()" style="position:absolute;top:8px;right:8px;background:none;border:none;cursor:pointer;color:#a0aec0;font-size:1rem;line-height:1" title="削除">✕</button>
+    <input type="text" class="section-label" placeholder="セクション名（例：所感、特記事項）" value="${label.replace(/"/g,'&quot;')}" maxlength="40"
+      style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:0.85rem;font-family:inherit;margin-bottom:8px">
+    <textarea class="section-content" placeholder="自由にテキストを入力できます。"
+      style="width:100%;height:100px;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;font-size:0.85rem;font-family:inherit;resize:vertical;line-height:1.6">${content.replace(/</g,'&lt;')}</textarea>
+  `;
+  c.appendChild(div);
+}
+
+function openEditModalById(id) {
+  const s = savesCache[id];
+  if (!s) return;
   editingId = id;
-  document.getElementById('edit-name-input').value = name;
-  document.getElementById('edit-sources-input').value = sources;
+  document.getElementById('edit-name-input').value = s.name;
+  renderEditSections(s.sections || []);
+  document.getElementById('edit-sources-input').value = (s.sources || []).join('\n');
   document.getElementById('edit-modal').classList.add('open');
   setTimeout(() => document.getElementById('edit-name-input').focus(), 50);
 }
@@ -653,13 +706,17 @@ async function confirmEdit() {
   if (!editingId) return;
   const name = document.getElementById('edit-name-input').value.trim();
   if (!name) { document.getElementById('edit-name-input').focus(); return; }
+  const sections = Array.from(document.getElementById('edit-sections-container').children).map(div => ({
+    label: div.querySelector('.section-label').value.trim() || 'メモ',
+    content: div.querySelector('.section-content').value.trim(),
+  })).filter(s => s.content);
   const sources = document.getElementById('edit-sources-input').value
     .split('\n').map(s => s.trim()).filter(s => s);
   try {
     const res = await fetch(`/api/saves/${editingId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, sources }),
+      body: JSON.stringify({ name, sections, sources }),
     });
     if (!res.ok) throw new Error('更新失敗');
     closeEditModal();
