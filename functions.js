@@ -81,6 +81,18 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
 
   app.get('/api/admin/check', apiAuth, (req, res) => res.json({ ok: true }));
 
+  // サイトマップ（公開済みレポートのみ）
+  app.get('/sitemap.xml', async (req, res) => {
+    const snap = await db.collection(SAVES_COL).where('published', '==', true).get();
+    const base = 'https://summary-weblog.web.app';
+    const urls = [`<url><loc>${base}/reports</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`];
+    snap.forEach(doc => {
+      urls.push(`<url><loc>${base}/reports/${doc.id}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`);
+    });
+    res.set('Content-Type', 'application/xml');
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>`);
+  });
+
   app.get('/api/companies', (req, res) => res.json(companies));
 
   // 公開一覧（published のみ）

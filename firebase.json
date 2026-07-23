@@ -7,8 +7,9 @@
       { "source": "/",           "destination": "/reports.html" },
       { "source": "/reports",    "destination": "/reports.html" },
       { "source": "/reports/**", "destination": "/report.html" },
-      { "source": "/admin",      "function": "api" },
-      { "source": "/api/**",     "function": "api" }
+      { "source": "/admin",        "function": "api" },
+      { "source": "/api/**",       "function": "api" },
+      { "source": "/sitemap.xml",  "function": "api" }
     ]
   },
   "functions": {

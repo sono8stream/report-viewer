@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /reports
+Allow: /reports/
+
+Disallow: /admin
+Disallow: /api/
+
+Sitemap: https://summary-weblog.web.app/sitemap.xml
