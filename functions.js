@@ -173,6 +173,12 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
     if (!s) return res.status(404).json({ error: 'not found' });
     const published = !(s.published ?? false);
     await updateSave(req.params.id, { published });
+
+    // Google にサイトマップ更新を通知
+    const sitemapUrl = 'https://summary-weblog.web.app/sitemap.xml';
+    fetch(`https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`)
+      .catch(() => {}); // 失敗しても無視
+
     res.json({ published });
   });
 
