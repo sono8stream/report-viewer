@@ -46,6 +46,10 @@ async function deleteSave(id) {
   await db.collection(SAVES_COL).doc(id).delete();
 }
 
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ---- Express app ----
 function createApp(ADMIN_USER, ADMIN_PASS) {
   const app = express();
@@ -74,8 +78,31 @@ function createApp(ADMIN_USER, ADMIN_PASS) {
     res.sendFile(path.join(__dirname, 'public', 'reports.html')));
   app.get('/reports', (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'reports.html')));
-  app.get('/reports/:id', (req, res) =>
-    res.sendFile(path.join(__dirname, 'public', 'report.html')));
+  app.get('/reports/:id', async (req, res) => {
+    const s = await getSave(req.params.id);
+    const base = 'https://summary-weblog.web.app';
+    const url = `${base}/reports/${req.params.id}`;
+
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'report.html'), 'utf8');
+
+    if (s && (s.published || isAdmin(req))) {
+      const found = (s.results || []).filter(r => r.score !== null);
+      const avg = s.stats?.avg;
+      const desc = [
+        `${(s.results||[]).length}社分析`,
+        avg != null ? `平均偏差値${Number(avg).toFixed(1)}` : null,
+        s.stats?.median != null ? `中央値${Number(s.stats.median).toFixed(1)}` : null,
+      ].filter(Boolean).join(' / ');
+
+      const title = `${s.name} — 就職先偏差値レポート`;
+      html = html
+        .replace(/<!--OGP_TITLE-->.*?<!--\/OGP_TITLE-->/g, esc(title))
+        .replace(/<!--OGP_DESC-->.*?<!--\/OGP_DESC-->/g, esc(desc))
+        .replace(/<!--OGP_URL-->.*?<!--\/OGP_URL-->/g, url);
+    }
+
+    res.set('Content-Type', 'text/html').send(html);
+  });
   app.get('/admin', basicAuth, (req, res) =>
     res.sendFile(path.join(__dirname, 'public', 'analyzer.html')));
 
